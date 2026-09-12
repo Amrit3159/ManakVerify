@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useData } from '@/context/DataContext';
+import { certificateApi } from '@/services/api';
 import { CertificateStatusBadge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -35,6 +36,7 @@ export default function VerifyPage() {
 
   const [inputVal, setInputVal] = useState(certQuery);
   const [copied, setCopied] = useState(false);
+  const [remoteCert, setRemoteCert] = useState<any>(null);
 
   // If using /:certificateId URL param, redirect to search-params style for consistency
   useEffect(() => {
@@ -46,12 +48,22 @@ export default function VerifyPage() {
   useEffect(() => {
     if (certQuery) {
       setInputVal(certQuery);
+      const local = getCertificateByNumber(certQuery.trim()) || getCertificateById(certQuery.trim());
+      if (local) {
+        setRemoteCert(local);
+      } else {
+        certificateApi.verifyPublic(certQuery.trim())
+          .then(data => setRemoteCert(data))
+          .catch(() => setRemoteCert(null));
+      }
+    } else {
+      setRemoteCert(null);
     }
-  }, [certQuery]);
+  }, [certQuery, getCertificateByNumber, getCertificateById]);
 
-  const activeCert = certQuery
+  const activeCert = remoteCert || (certQuery
     ? (getCertificateByNumber(certQuery.trim()) || getCertificateById(certQuery.trim()))
-    : null;
+    : null);
 
   const sampleCerts = certificates.slice(0, 3);
 

@@ -1,0 +1,204 @@
+// MaanakVerify Production PostgreSQL Prisma Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String         @id @default(cuid())
+  firebaseUid  String?        @unique
+  name         String
+  email        String         @unique
+  passwordHash String?
+  role         String         // "business" | "inspector" | "admin"
+  phone        String
+  businessId   String?
+  inspectorId  String?
+  joinedDate   String         @default("")
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  business     Business?      @relation("BusinessOwner")
+  inspections  Inspection[]   @relation("InspectorInspections")
+  certificates Certificate[]  @relation("InspectorCertificates")
+  notifications Notification[]
+}
+
+model Business {
+  id               String         @id @default(cuid())
+  name             String
+  gstin            String         @unique
+  address          String
+  city             String
+  state            String
+  pincode          String
+  contactPerson    String
+  phone            String
+  email            String
+  ownerId          String         @unique
+  registrationDate String
+  status           String         @default("ACTIVE")
+  category         String
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  owner            User           @relation("BusinessOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  instruments      Instrument[]
+  applications     Application[]
+  inspections      Inspection[]
+  certificates     Certificate[]
+}
+
+model Instrument {
+  id                   String        @id @default(cuid())
+  serialNumber         String
+  name                 String
+  type                 String
+  make                 String
+  model                String
+  capacity             String
+  accuracy             String
+  businessId           String
+  purchaseDate         String
+  installationDate     String
+  location             String
+  installationAddress  String?
+  lastVerificationDate String?
+  status               String        @default("PENDING_INSPECTION")
+  lastInspectionDate   String?
+  nextInspectionDue    String?
+  currentCertificateId String?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  business             Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  applications         Application[]
+  inspections          Inspection[]
+  certificates         Certificate[]
+
+  @@unique([serialNumber, businessId])
+}
+
+model Application {
+  id                      String                @id @default(cuid())
+  applicationNumber       String                @unique
+  businessId              String
+  instrumentId            String
+  applicationType         String                @default("INITIAL")
+  status                  String                @default("SUBMITTED")
+  submittedDate           String
+  lastUpdated             String
+  assignedInspectorId     String?
+  scheduledInspectionDate String?
+  remarks                 String?
+  fees                    Float                 @default(0)
+  feesPaid                Boolean               @default(false)
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
+
+  business                Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  instrument              Instrument            @relation(fields: [instrumentId], references: [id], onDelete: Cascade)
+  documents               ApplicationDocument[]
+  inspection              Inspection?
+  certificate             Certificate?
+}
+
+model ApplicationDocument {
+  id            String      @id @default(cuid())
+  applicationId String
+  name          String
+  type          String
+  uploadDate    String
+  status        String      @default("PENDING")
+
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+}
+
+model Inspection {
+  id               String            @id @default(cuid())
+  applicationId    String            @unique
+  instrumentId     String
+  businessId       String
+  inspectorId      String
+  status           String            @default("SCHEDULED")
+  scheduledDate    String
+  completedDate    String?
+  overallResult    String?
+  inspectorRemarks String?
+  evidencePhotos   String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  application      Application       @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  instrument       Instrument        @relation(fields: [instrumentId], references: [id], onDelete: Cascade)
+  business         Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  inspector        User              @relation("InspectorInspections", fields: [inspectorId], references: [id], onDelete: Cascade)
+  checklist        ChecklistItem[]
+  measurementTests MeasurementTest[]
+}
+
+model ChecklistItem {
+  id           String     @id @default(cuid())
+  inspectionId String
+  question     String
+  category     String
+  result       String?
+  remarks      String?
+
+  inspection   Inspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+}
+
+model MeasurementTest {
+  id            String     @id @default(cuid())
+  inspectionId  String
+  testName      String
+  nominalValue  String
+  measuredValue String
+  tolerance     String
+  unit          String
+  result        String?
+
+  inspection    Inspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+}
+
+model Certificate {
+  id                String      @id @default(cuid())
+  certificateNumber String      @unique
+  applicationId     String      @unique
+  instrumentId      String
+  businessId        String
+  inspectorId       String
+  issueDate         String
+  expiryDate        String
+  status            String      @default("VERIFIED")
+  stampNumber       String      @unique
+  issuingAuthority  String
+  issuingOfficer    String
+  instrumentDetails String
+  businessDetails   String
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  application       Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  instrument        Instrument  @relation(fields: [instrumentId], references: [id], onDelete: Cascade)
+  business          Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  inspector         User        @relation("InspectorCertificates", fields: [inspectorId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      String   @default("INFO")
+  isRead    Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
